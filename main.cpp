@@ -1,24 +1,24 @@
 #include <math.h>
 #include <algorithm>
-
+#include <ctime>
+#include <string.h>
+#include "http.h"
 #include "ncnn/net.h"
 #include "ncnn/benchmark.h"
 #include <opencv2/opencv.hpp>
 
-float Sigmoid(float x)
-{
+float Sigmoid(float x) {
     return 1.0f / (1.0f + exp(-x));
 }
 
-float Tanh(float x)
-{
+float Tanh(float x) {
     return 2.0f / (1.0f + exp(-2 * x)) - 1;
 }
 
-class TargetBox
-{
+class TargetBox {
 private:
     float GetWidth() { return (x2 - x1); };
+
     float GetHeight() { return (y2 - y1); };
 
 public:
@@ -33,10 +33,8 @@ public:
     float area() { return GetWidth() * GetHeight(); };
 };
 
-float IntersectionArea(const TargetBox &a, const TargetBox &b)
-{
-    if (a.x1 > b.x2 || a.x2 < b.x1 || a.y1 > b.y2 || a.y2 < b.y1)
-    {
+float IntersectionArea(const TargetBox &a, const TargetBox &b) {
+    if (a.x1 > b.x2 || a.x2 < b.x1 || a.y1 > b.y2 || a.y2 < b.y1) {
         // no intersection
         return 0.f;
     }
@@ -47,31 +45,26 @@ float IntersectionArea(const TargetBox &a, const TargetBox &b)
     return inter_width * inter_height;
 }
 
-bool scoreSort(TargetBox a, TargetBox b)
-{
+bool scoreSort(TargetBox a, TargetBox b) {
     return (a.score > b.score);
 }
 
 //NMS处理
-int nmsHandle(std::vector<TargetBox> &src_boxes, std::vector<TargetBox> &dst_boxes)
-{
+int nmsHandle(std::vector<TargetBox> &src_boxes, std::vector<TargetBox> &dst_boxes) {
     std::vector<int> picked;
 
     sort(src_boxes.begin(), src_boxes.end(), scoreSort);
 
-    for (int i = 0; i < src_boxes.size(); i++)
-    {
+    for (int i = 0; i < src_boxes.size(); i++) {
         int keep = 1;
-        for (int j : picked)
-        {
+        for (int j: picked) {
             //交集
             float inter_area = IntersectionArea(src_boxes[i], src_boxes[j]);
             //并集
             float union_area = src_boxes[i].area() + src_boxes[j].area() - inter_area;
             float IoU = inter_area / union_area;
 
-            if(IoU > 0.45 && src_boxes[i].category == src_boxes[j].category)
-            {
+            if (IoU > 0.45 && src_boxes[i].category == src_boxes[j].category) {
                 keep = 0;
                 break;
             }
@@ -82,27 +75,17 @@ int nmsHandle(std::vector<TargetBox> &src_boxes, std::vector<TargetBox> &dst_box
         }
     }
 
-    for (int i : picked)
-    {
+    for (int i: picked) {
         dst_boxes.push_back(src_boxes[i]);
     }
 
     return 0;
 }
 
-int main()
-{
+int main() {
     // 类别标签
-    static const char* class_names[] = {
-        "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light",
-        "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow",
-        "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
-        "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard",
-        "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
-        "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch",
-        "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone",
-        "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear",
-        "hair drier", "toothbrush"
+    static const char *class_names[] = {
+            "person"
     };
     // 类别数量
     int class_num = sizeof(class_names) / sizeof(class_names[0]);
@@ -116,9 +99,9 @@ int main()
 
     // 加载模型
     ncnn::Net net;
-    net.opt.use_vulkan_compute= true;
-    net.load_param("FastestDet.param");
-    net.load_model("FastestDet.bin");
+    net.opt.use_vulkan_compute = true;
+    net.load_param("1.param");
+    net.load_model("1.bin");
 
 
     printf("ncnn model load sucess...\n");
@@ -126,11 +109,27 @@ int main()
     // 加载图片
 
     cv::VideoCapture cap(0);
-    cv::Mat img ;
+    cv::Mat img;
     std::vector<TargetBox> nms_boxes;
     std::vector<TargetBox> target_boxes;
+    time_t start = time(0);
+
+    HttpRequest *Http;
+    char http_return[4096] = {0};
+    char http_msg[4096] = {0};
+    std::string api="https://api.day.app/jczfKrq4ofQmkHmc6R7ZYm/";
+    std::string msg=api+"1239999";
+    for (int i;i<msg.size();i++){
+        http_msg[i]=msg[i];
+    }
+//    strcpy(http_msg, "https://api.day.app/jczfKrq4ofQmkHmc6R7ZYm/xzssb");
+
+    if (Http->HttpGet(http_msg, http_return)) {
+        std::cout << http_return << std::endl;
+    }
+
     while (1) {
-        cap>>img;
+        cap >> img;
         int img_width = img.cols;
         int img_height = img.rows;
 
@@ -152,7 +151,7 @@ int main()
 
         // get output tensor
         ncnn::Mat output;
-        ex.extract("758", output);
+        ex.extract("734", output);
         printf("output: %d, %d, %d\n", output.c, output.h, output.w);
 
         // handle output tensor
@@ -207,16 +206,17 @@ int main()
         nmsHandle(target_boxes, nms_boxes);
         // 打印耗时
         double end = ncnn::get_current_time();
-        double time = end - start;
+        double time_used = end - start;
         printf("Time:%7.2f ms\n", time);
-        printf("FPS:%7.2f \n", 1000/time);
+        printf("FPS:%7.2f \n", 1000 / time_used);
         // draw result
-        for (auto box : nms_boxes) {
+        for (auto box: nms_boxes) {
             printf("x1:%d y1:%d x2:%d y2:%d  %s:%.2f%%\n", box.x1, box.y1, box.x2, box.y2, class_names[box.category],
                    box.score * 100);
 
             cv::rectangle(img, cv::Point(box.x1, box.y1), cv::Point(box.x2, box.y2), cv::Scalar(0, 0, 255), 2);
-            cv::putText(img, class_names[box.category], cv::Point(box.x1, box.y1), cv::FONT_HERSHEY_SIMPLEX, 0.75, cv::Scalar(0, 255, 0), 2);
+            cv::putText(img, class_names[box.category], cv::Point(box.x1, box.y1), cv::FONT_HERSHEY_SIMPLEX, 0.75,
+                        cv::Scalar(0, 255, 0), 2);
             cv::putText(img, std::to_string(box.score * 100).substr(0, 5), cv::Point(box.x2, box.y1),
                         cv::FONT_HERSHEY_SIMPLEX, 0.75, cv::Scalar(0, 255, 0), 2);
 
@@ -224,8 +224,21 @@ int main()
 
         cv::imshow("img", img);
         cv::waitKey(5);
+        time_t now = time(0);
+        if (((int) now - (int) start) % 10 == 0) {
+
+            msg=api+"当前房间人数："+ std::to_string(nms_boxes.size());
+//    strcpy(http_msg, "https://api.day.app/jczfKrq4ofQmkHmc6R7ZYm/xzssb");
+
+            if (Http->HttpGet(msg.data(), http_return)) {
+                std::cout << http_return << std::endl;
+            }
+
+            sleep(1);
+        }
         target_boxes.clear();
         nms_boxes.clear();
+
     }
     return 0;
 }
