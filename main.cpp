@@ -271,7 +271,7 @@ int main() {
     HttpRequest *Http;
     char http_return[4096] = {0};
     char http_msg[4096] = {0};
-    std::string api = "https://api.day.app/jczfKrq4ofQmkHmc6R7ZYm/";
+    std::string api = "https://api.day.app//";
     std::string msg = api + "start";
     if (Http->HttpGet(msg.data(), http_return)) {
         std::cout << http_return << std::endl;
